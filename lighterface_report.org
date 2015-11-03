@@ -1,0 +1,88 @@
+#+TITLE: Lighterface - valosensoreiden soveltuvuus osoittimen ohjaukseen
+
+:PROPERTIES:
+:session: lighterface
+:END:
+
+
+* Johdanto
+
+* Metodit
+
+Mittaukseen käytin Processing ohjelmointikielellä toteutettua ohjelmaa nimeltä
+Lighterface.
+
+#+INCLUDE: "lighterface.pde" src processing
+
+Lighterface piirtää ruudun keskelle ympyrän. Kun osoitin on leijunut ympyrän
+sisällä kolme sekuntia ruudun se häviää ja uusi vihreä ympyrä esiintyy 300
+pikselin päähän satunnaiseen suuntaan. Käyttäjän kuuluu viedä osoitin vihreän ympyrän
+sisälle niin nopeasti ja tarkasti kuin mahdollista. Tällä tavalla voimme mitata
+kuinka hyvin eri ohjaustavat soveltuvat suorien viivojen piirtämiseen.
+
+Suoritukset tallennetaan CSV-tiedostoon. Tiedostoon tallennetaan jokaisen
+piirtokutsun yhteydessä xy-koordinaatit sekä kuinka monta millisekuntia on
+kulunut viivan piirtämisen alkamisesta. Tiedoston viimeinen rivi sisältää
+viivan päätepisteen ja piirron kokonaisajan.
+
+#+CAPTION: Lyhennetty esimerkki mittaustiedostosta.
+#+BEGIN_EXAMPLE
+x,y,milliseconds
+384,385,16
+393,345,32
+...
+559,140,1016
+#+END_EXAMPLE
+
+#+BEGIN_SRC R
+results <- read.csv("results3_11_2015_17230.csv")
+xy <- results[1:2]
+origin <-  xy[1,]
+p <-  tail(xy, n=1) - origin
+angle <- atan2(p$y, p$x)
+draw.line <- lm(y ~ x, xy[c(1, length(xy$x)),]
+plot(xy)
+abline(coef(draw.line))
+plot(residuals(draw.line) ~ fitted(draw.line), main = deparse(draw.line$call))
+fitted(draw.line)
+
+xy.normalized <- within(xy, {
+  x <- x - origin$x
+  y <- y - origin$y
+})
+
+xy.rotated <- within(xy.normalized, {
+  x <- x*cos(-angle) - y * sin(-angle)
+  y <- x*sin(-angle) + y * cos(-angle)
+})
+
+# Somehow we need to rotate again, maybe because of precision errors.
+
+p.rotated <- tail(xy.rotated, n=1)
+newangle <- -atan2(p.rotated$y, p.rotated$x)
+
+xy.rotated2 <- within(xy.rotated, {
+  x <- x*cos(newangle) - y * sin(newangle)
+  y <- x*sin(newangle) + y * cos(newangle)
+})
+plot(xy.rotated2)
+draw.line <- lm(y ~ x, xy.rotated2[c(1, length(xy.rotated2$x)),])
+abline(coef(draw.line))
+
+plot(xy.rotated)
+draw.line <- lm(y ~ x, xy.rotated[c(1, length(xy.rotated$x)),])
+abline(coef(draw.line))
+
+within(p/300, {
+  x <- x*cos(-angle) - y * sin(-angle)
+  y <- y*cos(-angle) + x * sin(-angle)
+})
+
+#+END_SRC
+
+#+RESULTS:
+: 384
+
+* Tulokset
+
+* Johtopäätökset
