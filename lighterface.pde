@@ -6,6 +6,14 @@
  * the path taken when writing the line with a tricky control scheme.
  */
 
+import processing.serial.*;
+
+import cc.arduino.*;
+
+final int ANALOG_MAX = 1023;
+
+Arduino arduino;
+
 // Line to draw
 PVector line;
 
@@ -15,7 +23,14 @@ int goalCircleRadius = 50;
 
 int startDrawingLineInMillis = -1;
 
+int minX = ANALOG_MAX;
+int minY = ANALOG_MAX;
+int maxX = 0;
+int maxY = 0;
+
 boolean drawLineInProgress = false;
+
+boolean mousePointer = false;
 
 ArrayList<Integer> pointerXCoordinates = new ArrayList<Integer>();
 ArrayList<Integer> pointerYCoordinates = new ArrayList<Integer>();
@@ -31,11 +46,25 @@ void setup() {
   middleX = width/2;
   middleY = height/2;
   newFileWithHeader();
+
+  if (!mousePointer) {
+    // Prints out the available serial ports.
+    println(Arduino.list());
+
+    // Modify this line, by changing the "0" to the index of the serial
+    // port corresponding to your Arduino board (as it appears in the list
+    // printed by the line above).
+    arduino = new Arduino(this, Arduino.list()[5], 57600);
+  }
 }
 
 void newFileWithHeader() {
-  output = createWriter("results" + millis() + ".txt");
-  output.println("x,y,milliseconds")
+  output = createWriter("results" + day() + "_" + month() + "_" + year() +
+                        "_" + hour() + minute() + second() + ".csv");
+  output.println("x,y,milliseconds");
+  int halfWidth = width / 2;
+  int halfHeight = height / 2;
+  output.println(halfWidth + "," + halfHeight + ",0");
 }
 
 void draw() {
@@ -49,9 +78,38 @@ void draw() {
   int x = mouseX;
   int y = mouseY;
 
+  if (!mousePointer) {
+    x = arduino.analogRead(0);
+    y = arduino.analogRead(1);
+
+    if (x > maxX) {
+      maxX = x;
+    } else if (x < minX) {
+      minX = x;
+    }
+    if (y > maxY) {
+      maxY = y;
+    } else if (y < minY) {
+      minY = y;
+    }
+
+    println("x = " + x);
+    println("y = " + y);
+
+    x = int(map(x, minX, maxX, 0, width));
+    y = int(map(y, minY, maxY, 0, height));
+
+    println("x = " + x);
+    println("y = " + y);
+    println("minX = " + minX);
+    println("minY = " + minY);
+    println("maxX = " + maxX);
+    println("maxY = " + maxY);
+  }
+
   // Plot the cursor
   fill(255);
-  ellipse(mouseX, mouseY, 5, 5);
+  ellipse(x, y, 5, 5);
 
   // Start drawing the line from the middle. Denote this region with a circle
   fill(100);
@@ -79,9 +137,14 @@ void draw() {
         output.print(",");
         output.println(pointerMillis.get(i));
       }
+      output.print(int(goalX));
+      output.print(",");
+      output.print(int(goalY));
+      output.print(",");
+      output.println(now-startDrawingLineMillis);
       output.flush(); // Writes the remaining data to the file
       output.close(); // Finishes the file
-      output = newFileWithHeader();
+      newFileWithHeader();
       pointerXCoordinates.clear();
       pointerYCoordinates.clear();
       pointerMillis.clear();
