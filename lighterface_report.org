@@ -35,31 +35,53 @@ x,y,milliseconds
 #+END_EXAMPLE
 
 #+BEGIN_SRC R
-results <- read.csv("results3_11_2015_17230.csv")
+results <- read.csv("resultsmouse3_11_2015_17235.csv")
 xy <- results[1:2]
 origin <-  xy[1,]
 p <-  tail(xy, n=1) - origin
-angle <- atan2(p$y, p$x)
+p.magnitude <- sqrt(p$y^2 + p$x^2)
+angle <- -atan2(p$y, p$x)
 draw.line <- lm(y ~ x, xy[c(1, length(xy$x)),]
-plot(xy)
+plot(xy, type="b")
 abline(coef(draw.line))
-plot(residuals(draw.line) ~ fitted(draw.line), main = deparse(draw.line$call))
-fitted(draw.line)
+## plot(residuals(draw.line) ~ fitted(draw.line), main = deparse(draw.line$call))
+## fitted(draw.line)
 
 xy.normalized <- within(xy, {
   x <- x - origin$x
   y <- y - origin$y
 })
 
+rotmat <- matrix(c(cos(angle), -sin(angle),
+                   sin(angle), cos(angle)),
+                   nrow=2)
+
+matrix(t(tail(xy.normalized, n=1))) %*% rotmat
+
+goal <- tail(xy.normalized, n=1)
+x <- goal$x
+y <- goal$y
+
+x <- x*cos(angle) - y * sin(angle)
+y <- x*sin(angle) + y * cos(angle)
+
 xy.rotated <- within(xy.normalized, {
-  x <- x*cos(-angle) - y * sin(-angle)
-  y <- x*sin(-angle) + y * cos(-angle)
+  x <- x*cos(angle) - y * sin(angle)
+  y <- x*sin(angle) + y * cos(angle)
 })
+
+xy.rotated <- within(xy.normalized, {
+  print(c(x,y))
+  xy <- rotmat %*% c(x, y)
+})
+
+
 
 # Somehow we need to rotate again, maybe because of precision errors.
 
 p.rotated <- tail(xy.rotated, n=1)
 newangle <- -atan2(p.rotated$y, p.rotated$x)
+p.rotated.magnitude <- sqrt(p.rotated$y^2 + p.rotated$x^2)
 
 xy.rotated2 <- within(xy.rotated, {
   x <- x*cos(newangle) - y * sin(newangle)
@@ -86,3 +108,20 @@ within(p/300, {
 * Tulokset
 
 * Johtopäätökset
+
+* TODO fix CSV creation
+now empty csvs are created
+
+* TODO fix rotation to x-axis implementation
+
+something seems to be very wrong as I get very strange answers for certain results
+
+* TODO fix TODOs in the source
+
+* TODO cleanup source code
+
+* TODO add pictures from camera
+
+* TODO find out the resistance used
+
+* TODO maybe write the kytkentäkaavio if there is time
