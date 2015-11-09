@@ -41,8 +41,8 @@ origin <-  xy[1,]
 p <-  tail(xy, n=1) - origin
 p.magnitude <- sqrt(p$y^2 + p$x^2)
 angle <- -atan2(p$y, p$x)
-draw.line <- lm(y ~ x, xy[c(1, length(xy$x)),]
-plot(xy, type="b")
+draw.line <- lm(y ~ x, xy[c(1, length(xy$x)),])
+plot(xy, type="l", col="red")
 abline(coef(draw.line))
 ## plot(residuals(draw.line) ~ fitted(draw.line), main = deparse(draw.line$call))
 ## fitted(draw.line)
@@ -51,6 +51,10 @@ xy.normalized <- within(xy, {
   x <- x - origin$x
   y <- y - origin$y
 })
+draw.line <- lm(y ~ x, xy.normalized[c(1, length(xy.normalized$x)),])
+plot(xy.normalized, type="l", col="red")
+abline(coef(draw.line))
+angle <- -atan2(p$y, p$x)
 
 rotmat <- matrix(c(cos(angle), -sin(angle),
                    sin(angle), cos(angle)),
@@ -61,49 +65,38 @@ matrix(t(tail(xy.normalized, n=1))) %*% rotmat
 goal <- tail(xy.normalized, n=1)
 x <- goal$x
 y <- goal$y
+angle <- -atan2(y, x)
+sqrt(x^2 + y^2)
 
-x <- x*cos(angle) - y * sin(angle)
-y <- x*sin(angle) + y * cos(angle)
+x <- 1
+y <- -1 
+angle <- -atan2(y, x)
+
+rotatedX <- x*cos(angle) - y * sin(angle)
+rotatedY <- x*sin(angle) + y * cos(angle)
+
+sqrt(x^2 + y^2)
+
 
 xy.rotated <- within(xy.normalized, {
-  x <- x*cos(angle) - y * sin(angle)
-  y <- x*sin(angle) + y * cos(angle)
+  x.rotated <- x*cos(angle) - y * sin(angle)
+  y.rotated <- x*sin(angle) + y * cos(angle)
+  x <- x.rotated
+  y <- y.rotated
 })
+xy.rotated <- xy.rotated[1:2]
 
-xy.rotated <- within(xy.normalized, {
-  print(c(x,y))
-  xy <- rotmat %*% c(x, y)
-})
-
-
-
-# Somehow we need to rotate again, maybe because of precision errors.
-
-p.rotated <- tail(xy.rotated, n=1)
-newangle <- -atan2(p.rotated$y, p.rotated$x)
-p.rotated.magnitude <- sqrt(p.rotated$y^2 + p.rotated$x^2)
-
-xy.rotated2 <- within(xy.rotated, {
-  x <- x*cos(newangle) - y * sin(newangle)
-  y <- x*sin(newangle) + y * cos(newangle)
-})
-plot(xy.rotated2)
-draw.line <- lm(y ~ x, xy.rotated2[c(1, length(xy.rotated2$x)),])
-abline(coef(draw.line))
-
-plot(xy.rotated)
+plot(xy.rotated, type="l", col="red")
+points(xy.rotated)
 draw.line <- lm(y ~ x, xy.rotated[c(1, length(xy.rotated$x)),])
 abline(coef(draw.line))
-
-within(p/300, {
-  x <- x*cos(-angle) - y * sin(-angle)
-  y <- y*cos(-angle) + x * sin(-angle)
-})
-
 #+END_SRC
 
 #+RESULTS:
-: 384
+
+
+Viivan 
+
 
 * Tulokset
 
