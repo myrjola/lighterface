@@ -34,49 +34,23 @@ x,y,milliseconds
 559,140,1016
 #+END_EXAMPLE
 
-#+BEGIN_SRC R
+
+#+BEGIN_SRC R :file /Users/martin/git/lighterface/img/R_48617Z11.png :exports both :results graphics
 results <- read.csv("resultsmouse3_11_2015_17235.csv")
 xy <- results[1:2]
 origin <-  xy[1,]
-p <-  tail(xy, n=1) - origin
-p.magnitude <- sqrt(p$y^2 + p$x^2)
+p <- tail(xy, n=1) - origin
 angle <- -atan2(p$y, p$x)
-draw.line <- lm(y ~ x, xy[c(1, length(xy$x)),])
-plot(xy, type="l", col="red")
-abline(coef(draw.line))
-## plot(residuals(draw.line) ~ fitted(draw.line), main = deparse(draw.line$call))
-## fitted(draw.line)
 
 xy.normalized <- within(xy, {
   x <- x - origin$x
   y <- y - origin$y
 })
-draw.line <- lm(y ~ x, xy.normalized[c(1, length(xy.normalized$x)),])
-plot(xy.normalized, type="l", col="red")
-abline(coef(draw.line))
-angle <- -atan2(p$y, p$x)
 
-rotmat <- matrix(c(cos(angle), -sin(angle),
-                   sin(angle), cos(angle)),
-                   nrow=2)
-
-matrix(t(tail(xy.normalized, n=1))) %*% rotmat
-
-goal <- tail(xy.normalized, n=1)
-x <- goal$x
-y <- goal$y
-angle <- -atan2(y, x)
-sqrt(x^2 + y^2)
-
-x <- 1
-y <- -1 
-angle <- -atan2(y, x)
-
-rotatedX <- x*cos(angle) - y * sin(angle)
-rotatedY <- x*sin(angle) + y * cos(angle)
-
-sqrt(x^2 + y^2)
-
+# Before rotation
+# draw.line <- lm(y ~ x, xy.normalized[c(1, length(xy.normalized$x)),])
+# plot(xy.normalized, type="l", col="red")
+# abline(coef(draw.line))
 
 xy.rotated <- within(xy.normalized, {
   x.rotated <- x*cos(angle) - y * sin(angle)
@@ -93,6 +67,7 @@ abline(coef(draw.line))
 #+END_SRC
 
 #+RESULTS:
+[[file:/Users/martin/git/lighterface/img/R_48617Z11.png]]
 
 
 Viivan 
