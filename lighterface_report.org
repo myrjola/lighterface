@@ -1,21 +1,27 @@
 #+TITLE: Lighterface - valosensoreiden soveltuvuus osoittimen ohjaukseen
+#+AUTHOR: Martin Yrjölä - 84086N
+#+PROPERTY: header-args:R  :session *R:lighterface* :tangle yes
+#+LANGUAGE: fi
+#+LATEX_HEADER: \usepackage[finnish]{babel}
 
-:PROPERTIES:
-:session: lighterface
-:END:
-
+\parindent 0mm
+\parskip 3mm
 
 * Johdanto
 
-* Metodit
+Hiiri on vallitseva tapa osoittimen ohjaukseen. Tässä tutkimuksessa selvitetään
+vaihtoehtoista ohjaustapaa käyttäen kahta valosensoria.
+
+* Metodiikka
 
 Mittaukseen käytin Processing ohjelmointikielellä toteutettua ohjelmaa nimeltä
-Lighterface.
+Lighterface. Olen taltioinut demovideon osoitteeseen https://youtu.be/LvIR9VB5Kk4.
 
-#+INCLUDE: "lighterface.pde" src processing
+#+CAPTION: Kuvakaappaus Lighterface ohjelmasta
+[[file:img/lighterface.png]]
 
 Lighterface piirtää ruudun keskelle ympyrän. Kun osoitin on leijunut ympyrän
-sisällä kolme sekuntia ruudun se häviää ja uusi vihreä ympyrä esiintyy 300
+sisällä kolme sekuntia se häviää ja uusi vihreä ympyrä esiintyy 300
 pikselin päähän satunnaiseen suuntaan. Käyttäjän kuuluu viedä osoitin vihreän ympyrän
 sisälle niin nopeasti ja tarkasti kuin mahdollista. Tällä tavalla voimme mitata
 kuinka hyvin eri ohjaustavat soveltuvat suorien viivojen piirtämiseen.
@@ -26,70 +32,374 @@ kulunut viivan piirtämisen alkamisesta. Tiedoston viimeinen rivi sisältää
 viivan päätepisteen ja piirron kokonaisajan.
 
 #+CAPTION: Lyhennetty esimerkki mittaustiedostosta.
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC csv
 x,y,milliseconds
 384,385,16
 393,345,32
 ...
 559,140,1016
-#+END_EXAMPLE
+#+END_SRC
 
-
-#+BEGIN_SRC R :file /Users/martin/git/lighterface/img/R_48617Z11.png :exports both :results graphics
-results <- read.csv("resultsmouse3_11_2015_17235.csv")
-xy <- results[1:2]
-origin <-  xy[1,]
-p <- tail(xy, n=1) - origin
-angle <- -atan2(p$y, p$x)
-
-xy.normalized <- within(xy, {
-  x <- x - origin$x
-  y <- y - origin$y
-})
-
-# Before rotation
-# draw.line <- lm(y ~ x, xy.normalized[c(1, length(xy.normalized$x)),])
-# plot(xy.normalized, type="l", col="red")
-# abline(coef(draw.line))
-
-xy.rotated <- within(xy.normalized, {
-  x.rotated <- x*cos(angle) - y * sin(angle)
-  y.rotated <- x*sin(angle) + y * cos(angle)
-  x <- x.rotated
-  y <- y.rotated
-})
-xy.rotated <- xy.rotated[1:2]
-
-plot(xy.rotated, type="l", col="red")
-points(xy.rotated)
-draw.line <- lm(y ~ x, xy.rotated[c(1, length(xy.rotated$x)),])
-abline(coef(draw.line))
+#+BEGIN_SRC R :exports none
+data.mouse <- Sys.glob("*mouse*.csv")
+data.shadow <- Sys.glob("*shadow*.csv")
+data.light <- Sys.glob("*light*.csv")
 #+END_SRC
 
 #+RESULTS:
-[[file:/Users/martin/git/lighterface/img/R_48617Z11.png]]
+| resultslight4_11_2015_01253.csv |
+| resultslight4_11_2015_01428.csv |
+| resultslight4_11_2015_01516.csv |
+| resultslight4_11_2015_01524.csv |
+| resultslight4_11_2015_01534.csv |
+| resultslight4_11_2015_01543.csv |
+| resultslight4_11_2015_01553.csv |
+| resultslight4_11_2015_0158.csv  |
+| resultslight4_11_2015_01613.csv |
+| resultslight4_11_2015_01620.csv |
+| resultslight4_11_2015_0163.csv  |
 
+Koska viivaa piirretään useaan suuntaan on järkevää normalisoida data
+muuttamalla koordinaatistoa niin, että x-akseli on viivan suuntainen.
 
-Viivan 
+#+BEGIN_SRC R :exports none
+options(digits=5)
+#+END_SRC
+
+#+RESULTS:
+: 5
+
+#+CAPTION: Mittausdatan normalisointifunktio
+#+BEGIN_SRC R
+normalizeData <- function(filename) {
+  data = read.csv(filename) 
+  xy <- data[1:2]
+  origin <-  xy[1,]
+  p <- tail(xy, n=1) - origin
+  angle <- -atan2(p$y, p$x)
+
+  xy.normalized <- within(xy, {
+    x <- x - origin$x
+    y <- y - origin$y
+  })
+
+  xy.rotated <- within(xy.normalized, {
+    x.rotated <- x*cos(angle) - y * sin(angle)
+    y.rotated <- x*sin(angle) + y * cos(angle)
+    x <- x.rotated
+    y <- y.rotated
+  })
+  return(xy.rotated[1:2])
+}
+#+END_SRC
+
+#+RESULTS:
+
+Näin voimme siis ryhmittää mittausdatat ja saada verrannollisia kuvaajia. Toinen
+hyöty on, että y-akseli kertoo etäisyyden viivasta, jota voimme käyttää eri
+ohjausmenetelmien tarkkuuden mittaamiseen.
+
+#+BEGIN_SRC R :exports none
+groupData <- function(filenames) {
+  data.normalized <- Map(normalizeData, filenames)
+  return(do.call("rbind", data.normalized))
+}
+#+END_SRC
+
+#+RESULTS:
+
+* Koeasetelma
+
+Tässä tutkimuksessa vertailemme eri ohjaustapoja valosensoreilla. Rakensin kahta
+valosensoria mittaavaan järjestelmän käyttäen Arduinoa. Kuva [[testsetup]] näyttää
+miten kytkennät on tehty.
+
+#+NAME: testsetup
+#+CAPTION: Koejärjestelmä, näkösuoja sensoreiden välissä häiriöiden välttämiseksi.
+[[file:img/testsetup.JPG]]
+
+Ensimmäiseksi mittasin ohjausta varjostamalla valosensoreita käsilläni
+valaistussa huoneessa. Tätä ohjaustapaa kuvaan nimellä Varjo. Tämä ohjaustapa
+tuntui epäluonnolliselta, mutta pienen harjoittelun jälkeen sain osoittimen
+pisteestä A pisteeseen B, mutta ei välttämättä suorassa viivassa.
+
+Toinen ohjaustapa oli pimeässä huoneessa ohjaus käyttäen kahta taskulamppua.
+Kutsun tätä ohjaustapaa nimellä Valo. Nopean kokeilun jälkeen huomasin, että
+parhaaseen tulokseen pääsee, kun taskulamppuja liikuttaa kiertoliikeellä, täten
+ohjaustapa muistuttaa nuppien vääntämistä. Tämä tuntui luonnolisemmalta tavalta
+ohjata osoitinta, mutta ohjaustavan toteutus vaatii enemmän välineitä.
+
+Otin myös näytteitä hiiriohjauksella vertailuarvoiksi.
 
 
 * Tulokset
 
-* Johtopäätökset
+Käytämme N:nä viivojen piirtojen määrä. Keräsin src_R{length(data.mouse)}
+hiirellä piirrettyä viivaa vertailuarvoiksi. Varjo ohjaustavalla piirsin
+src_R{length(data.shadow)} viivaa ja Valo ohjaustavalla
+src_R{length(data.light)} viivaa.
 
-* TODO fix CSV creation
-now empty csvs are created
+Kuvissa [[mousedensity]], [[shadowdensity]] ja [[lightdensity]] näemme tiheyskuvaajat eri
+ohjaustapojen välillä. Silmämääräisesti tarkasteltuna näemme, että hiiriohjaus
+on tarkin tapa piirtää viiva. Varjo ohjauksessa osoitin heittelehti paljon
+ruudulla, joten osoitin eksyy kauas piirettävältä viivalta. Valo ohjaustavalla
+on hieman parempi tulos verrattuna Varjo ohjaukseen.
 
-* TODO fix rotation to x-axis implementation
+#+BEGIN_SRC R :exports none
+results.mouse <- groupData(data.mouse)
+results.light <- groupData(data.light)
+results.shadow <- groupData(data.shadow)
+#+END_SRC
 
-something seems to be very wrong as I get very strange answers for certain results
+#+RESULTS:
+|                  0 |                    0 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|   -2.5205377384764 |      -6.216662248258 |
+|    9.7002512965607 |    -3.45038038244662 |
+|   24.4747867359303 |    -5.09753020890814 |
+|   45.8578466806596 |    -14.2498385188435 |
+|   45.8578466806596 |    -14.2498385188435 |
+|   74.0287579263715 |    -28.0845687144861 |
+|   101.000836334679 |    -49.6369928550814 |
+|   117.880801189324 |    -62.7544158682327 |
+|   140.316575841691 |    -77.6418607715129 |
+|   155.001447883249 |    -80.7003788968578 |
+|   170.616162568777 |       -80.2753079739 |
+|   181.425583304931 |    -77.4193627102772 |
+|   192.985519889432 |    -73.9025649961184 |
+|   198.059804032241 |    -72.0993344401333 |
+|   203.794940625586 |    -71.0466197324956 |
+|   209.530077218931 |    -69.9939050248579 |
+|   212.442477214509 |    -68.7618635215974 |
+|   219.017793054013 |    -65.6369280645403 |
+|   224.842593045169 |    -63.1728450580192 |
+|   230.006540585789 |    -59.9582462031508 |
+|   233.759119827526 |    -56.6539839504709 |
+|   238.172551519799 |    -54.1002375461385 |
+|   242.675646609883 |    -50.1351228429226 |
+|   247.178741699968 |    -46.1700081397068 |
+|   254.683900183442 |     -39.561483634347 |
+|   265.191122060305 |    -30.3095493268434 |
+|   301.126219383168 | -2.8421709430404e-14 |
+|                  0 |                    0 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+| -0.986031428812162 |    0.166559362975027 |
+|   2.95809428643649 |   -0.499678088925082 |
+|   21.0397787310054 |    -1.52568376485125 |
+|    48.661983486784 |   -0.106597992304016 |
+|   82.0338174524605 |   -0.672899826419107 |
+|   103.240155546441 |    -1.21255216245819 |
+|   103.240155546441 |    -1.21255216245819 |
+|   136.278870786167 |    -3.75091685419761 |
+|   145.153153645477 |    -5.24995112097286 |
+|   154.027436504786 |     -6.7489853877481 |
+|   162.901719364096 |    -8.24801965452335 |
+|   168.984467299944 |    -8.26134440356135 |
+|   174.900655872817 |    -9.26070058141151 |
+|   179.997372379853 |    -9.10746596747449 |
+|   183.941498095101 |    -9.77370341937459 |
+|   190.024246030949 |     -9.7870281684126 |
+|   197.093025395609 |    -9.96691228042563 |
+|   205.480954915032 |    -8.34129289778936 |
+|   205.480954915032 |    -8.34129289778936 |
+|   222.090254590901 |    -6.07608556132899 |
+|   227.353530460912 |     -4.9368195185798 |
+|   231.464215539136 |    -4.61702554166775 |
+|   233.602837759735 |    -3.96411283880564 |
+|   236.727491409147 |    -3.47775949891857 |
+|   239.685585695583 |    -3.97743758784365 |
+|   241.990767279158 |    -2.33849345616937 |
+|   246.101452357381 |    -2.01869947925732 |
+|   251.198168864417 |     -1.8654648653203 |
+|   300.193271077151 |  1.4210854715202e-14 |
 
-* TODO fix TODOs in the source
+#+BEGIN_SRC R :file img/R_65793zoC.png :exports results :results graphics
+scatter.ylim = c(-500, 500)
+smoothScatter(results.mouse, ylim=scatter.ylim)
+#+END_SRC
 
-* TODO cleanup source code
+#+NAME: mousedensity
+#+ATTR_LATEX: :width 8cm
+#+CAPTION: Hiiriohjauksen tiheyskuvaaja
+#+RESULTS:
+[[file:img/R_65793zoC.png]]
 
-* TODO add pictures from camera
+#+BEGIN_SRC R :file img/R_65793u7Q.png :exports results :results graphics
+smoothScatter(results.shadow, ylim=scatter.ylim)
+#+END_SRC
 
-* TODO find out the resistance used
+#+NAME: shadowdensity
+#+ATTR_LATEX: :width 8cm
+#+CAPTION: Varjo-ohjauksen tiheyskuvaaja
+#+RESULTS:
+[[file:img/R_65793u7Q.png]]
 
-* TODO maybe write the kytkentäkaavio if there is time
+#+BEGIN_SRC R :file img/R_65793IQd.png :exports results :results graphics
+smoothScatter(results.light, ylim=scatter.ylim)
+#+END_SRC
+
+#+NAME: lightdensity
+#+ATTR_LATEX: :width 8cm
+#+CAPTION: Valo-ohjauksen tiheyskuvaaja
+#+RESULTS:
+[[file:img/R_65793IQd.png]]
+
+Taulukossa [[distdesc]] on kerätty deskriptiivistä statistiikka etäisyydestä
+piirrettävään viivaan. Tilastot vahvistavat oletukset eri ohjaustapojen
+tarkkuuksista. Niin keskimääräinen virhe kuin standardipoikkeaman suuruus antaa
+meille paremmuusjärjestyksen Hiiri, Valo ja Varjo.
+
+#+BEGIN_SRC R :colnames yes :rownames yes :exports results
+# Descriptive statistics on the distance from the line, which happens to be the
+# y-axis value after rotation
+results.distance <- list(results.mouse$y, results.shadow$y, results.light$y)
+
+MeanAbsoluteError <- function(x) {
+  mean(abs(x))
+}
+
+RootMeanSquareError <- function(x) {
+  sqrt(mean(x^2))
+}
+
+results.distance.descr <- data.frame(sapply(results.distance, MeanAbsoluteError),
+                                     sapply(results.distance, RootMeanSquareError),
+                                     sapply(results.distance, sd))
+
+colnames(results.distance.descr) <- c("MAE", "RMSE", "\\sigma")
+control.rownames <- c("Hiiri", "Varjo", "Valo")
+rownames(results.distance.descr) <- control.rownames
+
+results.distance.descr
+#+END_SRC
+
+#+NAME: distdesc
+#+CAPTION: Deskriptiivistä statistiikkaa eri ohjaustapojen tarkkuudesta
+#+RESULTS:
+|       |              MAE |             RMSE |           \sigma |
+|-------+------------------+------------------+------------------|
+| Hiiri | 7.99549785832045 | 14.2422858883824 | 14.1709191594303 |
+| Varjo | 67.1902496788009 | 94.7608600743941 | 91.9051091029607 |
+| Valo  | 42.4205676162468 | 57.6619883335222 | 54.8428730006106 |
+
+Mittasin myös aikaa viivan piirtämiseen millisekunneissa. Taulukkoon [[timedesc]] on
+kerätty tähän liittyvät tilastot. Hieman yllättäen Valo ja Varjo ovat
+suunnilleen yhtä nopeita ohjaustapoja mediaania tarkastellen. Varjo
+ohjaustavassa on runsaasti korkeampi maksimi kuin muissa ohjaustavoissa, joka
+nostaa keskiarvon myös hitaimmalle tasolle.
+
+#+BEGIN_SRC R :colnames yes :rownames yes :exports results
+extractTime <- function(filename) {
+  data <- read.csv(filename)
+  millis <- data$milliseconds
+  tail(millis, n=1)
+}
+times <-  list(sapply(data.mouse, extractTime),
+               sapply(data.shadow, extractTime),
+               sapply(data.light, extractTime))
+
+times.descr <- data.frame(sapply(times, min),
+                          sapply(times, max),
+                          sapply(times, mean),
+                          sapply(times, median),
+                          sapply(times, sd))
+
+colnames(times.descr) <- c("Min", "Max", "Keskiarvo", "Mediaani", "\\sigma")
+rownames(times.descr) <- control.rownames
+times.descr
+#+END_SRC
+
+#+NAME: timedesc
+#+CAPTION: Deskriptiivistä statistiikkaa eri ohjaustapojen nopeudesta
+#+RESULTS:
+|       |  Min |  Max |        Keskiarvo | Mediaani |           \sigma |
+|-------+------+------+------------------+----------+------------------|
+| Hiiri |  693 | 1350 | 1019.61538461538 |     1013 |  160.55971810178 |
+| Varjo | 2216 | 9047 |             4243 |   3390.5 | 2198.72620148369 |
+| Valo  | 1633 | 5298 | 3604.09090909091 |     3448 | 1227.18217511056 |
+
+* Johtopäätökset ja suositukset
+
+Niin Varjo kuin Valo ohjaustavat eivät sovellu hiiren korvikkeeksi tarkkuutta
+vaativaan ohjaukseen. Jos haluaa toteuttaa erilaisen ohjaustavan esimerkiksi
+kokeelliseksi käyttöliittymäksi, eikä halua turhauttaa käyttäjää
+epäluonnollisella ohjauksella suosittelen Valo ohjaustapaa. Varjo ohjaustapaa
+kannattaa harkita mikäli taskulamput ja hämärä huone osoittautuvat liian
+hankaliksi toteutuksen kannalta.
+
+* Liitteet
+
+** Lighterface ohjelman koodi
+
+#+INCLUDE: "lighterface.pde" src processing
+
+** Analyysikoodi R-kielessä
+
+#+INCLUDE: "lighterface_report.R" src R
+
+
+

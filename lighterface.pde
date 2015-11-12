@@ -1,9 +1,10 @@
 /**
  * Lighterface - user interface research based on two photoresistors
  *
- * Two photoresistors gives a pointer's x and y coordinates. The task is to
- * write straight lines. We need a way to show this goal and make sampling of
- * the path taken when writing the line with a tricky control scheme.
+ * Two photoresistors gives a pointer's x and y coordinates. The task
+ * is to write straight lines. We need a way to show this goal and
+ * make sampling of the path taken when writing the line with a tricky
+ * control scheme.
  */
 
 import processing.serial.*;
@@ -30,7 +31,9 @@ int maxY = 0;
 
 boolean drawLineInProgress = false;
 
-boolean mousePointer = false;
+// Change this to false when you want to control the pointer with an
+// Arduino's 0 and 1 analog ports.
+boolean mousePointer = true;
 
 ArrayList<Integer> pointerXCoordinates = new ArrayList<Integer>();
 ArrayList<Integer> pointerYCoordinates = new ArrayList<Integer>();
@@ -71,8 +74,6 @@ void draw() {
   now = millis();
   fill(100, 0.8);
 
-  // TODO: fix fading
-  rect(0, 0, width, height);
   background(100);
 
   int x = mouseX;
